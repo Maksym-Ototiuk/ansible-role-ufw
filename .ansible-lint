@@ -1,0 +1,10 @@
+---
+profile: production
+
+# Collections are installed explicitly (see .github/workflows/ci.yml).
+# Without this, ansible-lint also tries to install the role itself, which
+# requires a Galaxy namespace in meta/main.yml (assigned by Galaxy on import).
+offline: true
+
+kinds:
+  - requirements: "**/molecule/*/requirements*.yml"

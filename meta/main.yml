@@ -1,0 +1,24 @@
+---
+galaxy_info:
+  role_name: ufw
+  author: Maksym Ototiuk
+  description: >-
+    Declarative UFW rule management. Define services as a dict of
+    fields (port, proto, src, ...); the role expands list-valued
+    fields into individual rules and reconciles the host to match.
+  license: MIT
+  min_ansible_version: "2.16"
+
+  platforms:
+    - name: Ubuntu
+      versions:
+        - noble
+        - resolute
+
+  galaxy_tags:
+    - ufw
+    - firewall
+    - security
+    - networking
+
+dependencies: []

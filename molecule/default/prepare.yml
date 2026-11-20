@@ -1,0 +1,22 @@
+---
+- name: Prepare
+  hosts: all
+  gather_facts: false
+  tasks:
+    - name: Install Python and UFW
+      ansible.builtin.raw: >-
+        command -v python3 >/dev/null && command -v ufw >/dev/null ||
+        (apt-get update -q &&
+        DEBIAN_FRONTEND=noninteractive apt-get install -y -q --no-install-recommends
+        python3 ufw iptables procps)
+      changed_when: false
+
+    - name: Install an application profile used by the tests
+      ansible.builtin.copy:
+        dest: /etc/ufw/applications.d/molecule-test
+        content: |
+          [MoleculeTest]
+          title=Molecule test profile
+          description=Application profile used by the role tests
+          ports=8022/tcp
+        mode: "0644"

@@ -1,0 +1,47 @@
+---
+# Run the role under test.
+#
+# Parameters:
+#   test_name            - label for task output
+#   test_rules           - dict with any of ufw, ufw_common, ufw_group, ufw_host
+#   test_check_mode      - run the role in check mode (default: false)
+#   test_expect_failure  - the role is expected to fail (default: false)
+#   test_expect_error    - text expected in the failure message
+#
+# Sets: test_failed, test_error
+
+- name: "Run role: {{ test_name }}"
+  block:
+    - name: "Run role: {{ test_name }}"
+      ansible.builtin.include_role:
+        name: "{{ lookup('ansible.builtin.env', 'MOLECULE_PROJECT_DIRECTORY') }}"
+        apply:
+          check_mode: "{{ test_check_mode | default(false) }}"
+      vars:
+        ufw: "{{ test_rules.ufw | default({}) }}"
+        ufw_common: "{{ test_rules.ufw_common | default({}) }}"
+        ufw_group: "{{ test_rules.ufw_group | default({}) }}"
+        ufw_host: "{{ test_rules.ufw_host | default({}) }}"
+
+    - name: "Record success: {{ test_name }}"
+      ansible.builtin.set_fact:
+        test_failed: false
+        test_error: ""
+
+  rescue:
+    - name: "Record failure: {{ test_name }}"
+      ansible.builtin.set_fact:
+        test_failed: true
+        test_error: "{{ ansible_failed_result.msg | default('') }}"
+
+- name: "Check outcome: {{ test_name }}"
+  ansible.builtin.assert:
+    that:
+      - test_failed == (test_expect_failure | default(false))
+      - test_expect_error | default('') in test_error
+    fail_msg: >-
+      {{ test_name }}: expected
+      {{ 'failure' if test_expect_failure | default(false) else 'success' }}
+      {%- if test_expect_error is defined %} with "{{ test_expect_error }}"{% endif %},
+      got {{ 'failure: ' ~ test_error if test_failed else 'success' }}
+    quiet: true

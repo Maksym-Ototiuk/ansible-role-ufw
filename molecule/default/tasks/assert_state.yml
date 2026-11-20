@@ -1,0 +1,30 @@
+---
+# Compare UFW on the host with the expected state.
+#
+# Parameters:
+#   test_name             - label for task output
+#   test_expected_rules   - expected `ufw show added` lines, in order
+#   test_expected_status  - "active" or "inactive" (default: active)
+
+- name: "Read rules: {{ test_name }}"
+  ansible.builtin.command: ufw show added
+  register: test_added
+  changed_when: false
+
+- name: "Read status: {{ test_name }}"
+  ansible.builtin.command: ufw status
+  register: test_status
+  changed_when: false
+
+- name: "Check state: {{ test_name }}"
+  ansible.builtin.assert:
+    that:
+      - test_actual_rules == test_expected_rules
+      - "test_status.stdout_lines[0] == 'Status: ' ~ (test_expected_status | default('active'))"
+    fail_msg: >-
+      {{ test_name }}: expected {{ test_expected_status | default('active') }}
+      with {{ test_expected_rules }}, got "{{ test_status.stdout_lines[0] }}"
+      with {{ test_actual_rules }}
+    quiet: true
+  vars:
+    test_actual_rules: "{{ test_added.stdout_lines[1:] | reject('equalto', '(None)') | list }}"

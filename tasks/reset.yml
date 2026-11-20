@@ -1,0 +1,55 @@
+---
+# Rebuild the UFW rule set from scratch. Included from tasks/main.yml
+# only when drift was detected. In check mode every task below only
+# reports what it would change.
+#
+# `ufw reset` disables the firewall and restores the *.rules files in
+# /etc/ufw to package defaults (the old files are kept as timestamped
+# backups). Traffic is not filtered until "Enable UFW" completes.
+
+- name: Rebuild UFW rule set
+  block:
+    - name: Reset UFW to installation defaults
+      community.general.ufw:
+        state: reset
+
+    - name: Apply declared rules
+      ansible.builtin.include_tasks: ufw_service.yml
+      loop: "{{ ufw_effective_rules | dict2items }}"
+      loop_control:
+        loop_var: ufw_service
+        label: "{{ ufw_service.key }}"
+
+    - name: Enable UFW
+      community.general.ufw:
+        state: enabled
+
+  rescue:
+    - name: Report failed rebuild
+      ansible.builtin.fail:
+        msg: >-
+          Rebuilding the UFW rule set failed after UFW was reset
+          (failed task: {{ ansible_failed_task.name | default('unknown') }}).
+          UFW is DISABLED on this host until the role completes
+          successfully. Fix the cause and run the role again.
+
+- name: Verify the rebuilt rule set
+  when: ufw_check_mode_probe is not skipped
+  block:
+    - name: Read rules configured after the rebuild
+      ansible.builtin.command: ufw show added
+      register: ufw_added_after_reset
+      changed_when: false
+
+    - name: Verify that all declared rules are distinct
+      ansible.builtin.assert:
+        that: ufw_rules_after_reset | int == ufw_total_rule_count | int
+        fail_msg: >-
+          {{ ufw_total_rule_count }} rules are declared, but UFW holds
+          {{ ufw_rules_after_reset }} after the rebuild. Some declared rules
+          are identical (they differ at most in their comment). UFW is
+          enabled with the distinct rules, but every run will reset it
+          again until the duplicates are removed.
+        quiet: true
+      vars:
+        ufw_rules_after_reset: "{{ ufw_added_after_reset.stdout_lines | select('match', '^ufw ') | list | length }}"

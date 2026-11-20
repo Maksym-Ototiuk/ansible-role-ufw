@@ -1,0 +1,116 @@
+---
+# Reconcile UFW on the host with the declared rule set.
+#
+# 1. Merge the rule layers into `ufw_effective_rules`.
+# 2. Detect drift without changing anything:
+#      - UFW is not enabled;
+#      - a declared rule is missing or differs (check-mode dry run);
+#      - the number of rules on the host differs from the number of
+#        declared rules (catches rules that were added outside Ansible).
+# 3. If any check reports drift: reset UFW, apply all declared rules,
+#    enable UFW (tasks/reset.yml).
+#
+# An empty rule set is a no-op: UFW is left untouched.
+
+- name: Initialise reconciliation state
+  ansible.builtin.set_fact:
+    ufw_total_rule_count: 0
+    ufw_rules_drift: false
+
+# Skipped whenever the task runs in check mode, whether enabled with
+# --check or with `check_mode: true` on a play, block or include
+# (`ansible_check_mode` only reflects --check).
+- name: Detect check mode
+  ansible.builtin.command: /bin/true
+  register: ufw_check_mode_probe
+  changed_when: false
+
+- name: Build effective rule set from layered variables
+  ansible.builtin.set_fact:
+    ufw_effective_rules: >-
+      {{
+        ufw
+        if (ufw | default({}) | length > 0)
+        else (
+          {}
+          | combine(ufw_common | default({}), recursive=True)
+          | combine(ufw_group | default({}), recursive=True)
+          | combine(ufw_host | default({}), recursive=True)
+        )
+      }}
+
+- name: Skip UFW management (no rules declared)
+  ansible.builtin.debug:
+    msg: >-
+      ufw, ufw_common, ufw_group and ufw_host are all empty for this host;
+      UFW is left unchanged.
+  when: ufw_effective_rules | length == 0
+
+- name: Reconcile UFW with declared rules
+  when: ufw_effective_rules | length > 0
+  block:
+    - name: Validate rule comments
+      ansible.builtin.assert:
+        that: ufw_quoted_comments | length == 0
+        fail_msg: >-
+          Rule comments must not contain single quotes ('), the ufw module
+          cannot pass them to ufw: {{ ufw_quoted_comments | join(' | ') }}
+        quiet: true
+      vars:
+        ufw_quoted_comments: >-
+          {{
+            ufw_effective_rules | dict2items
+            | selectattr('value.comment', 'defined')
+            | map(attribute='value.comment') | flatten
+            | map('string') | select('search', "'") | list
+          }}
+
+    - name: Check whether UFW is enabled
+      community.general.ufw:
+        state: enabled
+      check_mode: true
+      register: ufw_state_check
+
+    - name: Check declared rules against the host (dry run)
+      ansible.builtin.include_tasks:
+        file: ufw_service.yml
+        apply:
+          check_mode: true
+      loop: "{{ ufw_effective_rules | dict2items }}"
+      loop_control:
+        loop_var: ufw_service
+        label: "{{ ufw_service.key }}"
+      vars:
+        ufw_dry_run: true
+
+    - name: Read rules currently configured on the host
+      ansible.builtin.command: ufw show added
+      register: ufw_added
+      changed_when: false
+      check_mode: false
+
+    - name: Count rules currently configured on the host
+      ansible.builtin.set_fact:
+        ufw_current_rule_count: "{{ ufw_added.stdout_lines | select('match', '^ufw ') | list | length }}"
+
+    - name: Decide whether a reset is required
+      ansible.builtin.set_fact:
+        ufw_needs_reset: >-
+          {{
+            (ufw_state_check is changed)
+            or (ufw_rules_drift | bool)
+            or (ufw_current_rule_count | int != ufw_total_rule_count | int)
+          }}
+
+    - name: Report reconciliation status
+      ansible.builtin.debug:
+        msg: >-
+          enabled={{ ufw_state_check is not changed }},
+          rule_drift={{ ufw_rules_drift | bool }},
+          rules_on_host={{ ufw_current_rule_count }},
+          rules_declared={{ ufw_total_rule_count }},
+          reset_required={{ ufw_needs_reset | bool }}
+
+    - name: Reset UFW and apply declared rules
+      ansible.builtin.include_tasks: reset.yml
+      when: ufw_needs_reset | bool

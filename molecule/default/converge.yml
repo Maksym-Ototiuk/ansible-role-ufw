@@ -1,0 +1,14 @@
+---
+- name: Converge
+  hosts: all
+  gather_facts: false
+  vars_files:
+    - vars/rules.yml
+  tasks:
+    - name: Apply the role
+      ansible.builtin.include_role:
+        name: "{{ lookup('ansible.builtin.env', 'MOLECULE_PROJECT_DIRECTORY') }}"
+      vars:
+        ufw_common: "{{ test_full.ufw_common }}"
+        ufw_group: "{{ test_full.ufw_group }}"
+        ufw_host: "{{ test_full.ufw_host }}"

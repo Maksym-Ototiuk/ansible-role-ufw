@@ -1,0 +1,48 @@
+---
+# The tests include the role by path, so Molecule does not need to
+# compute its Galaxy name (the namespace is assigned by Galaxy on import).
+role_name_check: 2
+
+dependency:
+  name: galaxy
+  options:
+    # CI sets UFW_TEST_REQUIREMENTS to pin collection versions for older
+    # ansible-core.
+    role-file: ${MOLECULE_SCENARIO_DIRECTORY}/${UFW_TEST_REQUIREMENTS:-requirements.yml}
+    requirements-file: ${MOLECULE_SCENARIO_DIRECTORY}/${UFW_TEST_REQUIREMENTS:-requirements.yml}
+
+driver:
+  name: docker
+
+# Privileged containers: UFW needs iptables and sysctl. Each container
+# has its own network namespace, so the host firewall is not affected.
+platforms:
+  - name: ufw-ubuntu-2404
+    image: ubuntu:24.04
+    pre_build_image: true
+    privileged: true
+    command: sleep infinity
+  - name: ufw-ubuntu-2604
+    image: ubuntu:26.04
+    pre_build_image: true
+    privileged: true
+    command: sleep infinity
+
+provisioner:
+  name: ansible
+
+verifier:
+  name: ansible
+
+scenario:
+  test_sequence:
+    - dependency
+    - destroy
+    - syntax
+    - create
+    - prepare
+    - converge
+    - idempotence
+    - check
+    - verify
+    - destroy

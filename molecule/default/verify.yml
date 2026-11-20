@@ -1,0 +1,269 @@
+---
+# Functional tests. converge.yml has applied `test_full`; every test
+# below starts from the state left by the previous one.
+
+- name: Verify
+  hosts: all
+  gather_facts: false
+  vars_files:
+    - vars/rules.yml
+  tasks:
+    # Rules from all layers and every field are applied as declared.
+    - name: Converged host matches the declaration
+      ansible.builtin.include_tasks: tasks/assert_state.yml
+      vars:
+        test_name: converged host
+        test_expected_rules: "{{ test_full_expected }}"
+
+    # Check mode and repeated runs do not trigger a rebuild.
+    - name: Check mode on a converged host
+      ansible.builtin.include_tasks: tasks/run_role.yml
+      vars:
+        test_name: check mode, converged
+        test_rules: "{{ test_full }}"
+        test_check_mode: true
+
+    - name: Assert no rebuild in check mode on a converged host
+      ansible.builtin.assert:
+        that: not ufw_needs_reset | bool
+        quiet: true
+
+    - name: Repeated run in the same play
+      ansible.builtin.include_tasks: tasks/run_role.yml
+      vars:
+        test_name: repeated run
+        test_rules: "{{ test_full }}"
+
+    - name: Assert no rebuild on a repeated run
+      ansible.builtin.assert:
+        that: not ufw_needs_reset | bool
+        quiet: true
+
+    # A rule added outside Ansible is reported in check mode, left in
+    # place by check mode, and removed by a normal run.
+    - name: Add a rule outside Ansible
+      ansible.builtin.command: ufw allow 8080/tcp
+      changed_when: true
+
+    - name: Check mode with an undeclared rule
+      ansible.builtin.include_tasks: tasks/run_role.yml
+      vars:
+        test_name: check mode, undeclared rule
+        test_rules: "{{ test_full }}"
+        test_check_mode: true
+
+    - name: Read rules after check mode
+      ansible.builtin.command: ufw show added
+      register: test_after_check
+      changed_when: false
+
+    - name: Assert check mode reported drift and changed nothing
+      ansible.builtin.assert:
+        that:
+          - ufw_needs_reset | bool
+          - "'ufw allow 8080/tcp' in test_after_check.stdout_lines"
+        quiet: true
+
+    - name: Remove the undeclared rule
+      ansible.builtin.include_tasks: tasks/run_role.yml
+      vars:
+        test_name: undeclared rule
+        test_rules: "{{ test_full }}"
+
+    - name: Assert the undeclared rule is gone
+      ansible.builtin.include_tasks: tasks/assert_state.yml
+      vars:
+        test_name: undeclared rule removed
+        test_expected_rules: "{{ test_full_expected }}"
+
+    # A deleted rule is restored at its position.
+    - name: Delete the first rule outside Ansible
+      ansible.builtin.command: ufw --force delete 1
+      changed_when: true
+
+    - name: Restore the deleted rule
+      ansible.builtin.include_tasks: tasks/run_role.yml
+      vars:
+        test_name: deleted rule
+        test_rules: "{{ test_full }}"
+
+    - name: Assert the deleted rule is restored
+      ansible.builtin.include_tasks: tasks/assert_state.yml
+      vars:
+        test_name: deleted rule restored
+        test_expected_rules: "{{ test_full_expected }}"
+
+    # A changed comment is detected by the per-rule dry run.
+    - name: Change a rule comment outside Ansible
+      ansible.builtin.command: ufw allow from 203.0.113.10 to any port 22 proto tcp comment edited
+      changed_when: true
+
+    - name: Check mode with a changed comment
+      ansible.builtin.include_tasks: tasks/run_role.yml
+      vars:
+        test_name: check mode, changed comment
+        test_rules: "{{ test_full }}"
+        test_check_mode: true
+
+    - name: Assert the dry run detected the changed rule
+      ansible.builtin.assert:
+        that:
+          - ufw_rules_drift | bool
+          - ufw_current_rule_count | int == ufw_total_rule_count | int
+        quiet: true
+
+    - name: Restore the comment
+      ansible.builtin.include_tasks: tasks/run_role.yml
+      vars:
+        test_name: changed comment
+        test_rules: "{{ test_full }}"
+
+    - name: Assert the comment is restored
+      ansible.builtin.include_tasks: tasks/assert_state.yml
+      vars:
+        test_name: comment restored
+        test_expected_rules: "{{ test_full_expected }}"
+
+    # A disabled firewall is enabled again.
+    - name: Disable UFW outside Ansible
+      ansible.builtin.command: ufw disable
+      changed_when: true
+
+    - name: Enable UFW again
+      ansible.builtin.include_tasks: tasks/run_role.yml
+      vars:
+        test_name: disabled UFW
+        test_rules: "{{ test_full }}"
+
+    - name: Assert UFW is enabled
+      ansible.builtin.include_tasks: tasks/assert_state.yml
+      vars:
+        test_name: UFW enabled
+        test_expected_rules: "{{ test_full_expected }}"
+
+    # A non-empty `ufw` replaces the layers.
+    - name: Apply a full override
+      ansible.builtin.include_tasks: tasks/run_role.yml
+      vars:
+        test_name: override
+        test_rules: "{{ test_override }}"
+
+    - name: Assert only the override rules are present
+      ansible.builtin.include_tasks: tasks/assert_state.yml
+      vars:
+        test_name: override applied
+        test_expected_rules: "{{ test_override_expected }}"
+
+    # An empty rule set leaves UFW untouched, enabled or not.
+    - name: Run with no rules on an enabled firewall
+      ansible.builtin.include_tasks: tasks/run_role.yml
+      vars:
+        test_name: no rules, enabled
+        test_rules: {}
+
+    - name: Assert the enabled firewall is unchanged
+      ansible.builtin.include_tasks: tasks/assert_state.yml
+      vars:
+        test_name: no rules, enabled
+        test_expected_rules: "{{ test_override_expected }}"
+
+    - name: Reset UFW outside Ansible
+      ansible.builtin.command: ufw --force reset
+      changed_when: true
+
+    - name: Run with no rules on a disabled firewall
+      ansible.builtin.include_tasks: tasks/run_role.yml
+      vars:
+        test_name: no rules, disabled
+        test_rules: {}
+
+    - name: Assert the disabled firewall is unchanged
+      ansible.builtin.include_tasks: tasks/assert_state.yml
+      vars:
+        test_name: no rules, disabled
+        test_expected_rules: []
+        test_expected_status: inactive
+
+    # Invalid definitions fail before UFW is changed.
+    - name: Reject a comment with a single quote
+      ansible.builtin.include_tasks: tasks/run_role.yml
+      vars:
+        test_name: quote in comment
+        test_rules: "{{ test_quote_in_comment }}"
+        test_expect_failure: true
+        test_expect_error: must not contain single quotes
+
+    - name: Assert UFW is untouched after the rejected comment
+      ansible.builtin.include_tasks: tasks/assert_state.yml
+      vars:
+        test_name: quote in comment
+        test_expected_rules: []
+        test_expected_status: inactive
+
+    # Duplicate rules are reported after the rebuild; UFW stays enabled.
+    - name: Report duplicate rules
+      ansible.builtin.include_tasks: tasks/run_role.yml
+      vars:
+        test_name: duplicate rules
+        test_rules: "{{ test_duplicates }}"
+        test_expect_failure: true
+        test_expect_error: are identical
+
+    - name: Assert UFW is enabled with the distinct rule
+      ansible.builtin.include_tasks: tasks/assert_state.yml
+      vars:
+        test_name: duplicate rules
+        test_expected_rules:
+          - ufw allow 22/tcp comment 'second (ssh_b)'
+
+    # A rule that fails during the rebuild stops the role and leaves
+    # UFW disabled, with an explicit message.
+    - name: Fail the rebuild
+      ansible.builtin.include_tasks: tasks/run_role.yml
+      vars:
+        test_name: failed rebuild
+        test_rules: "{{ test_invalid_insert }}"
+        test_expect_failure: true
+        test_expect_error: UFW is DISABLED
+
+    - name: Assert UFW is disabled after the failed rebuild
+      ansible.builtin.include_tasks: tasks/assert_state.yml
+      vars:
+        test_name: failed rebuild
+        test_expected_rules:
+          - ufw allow 22/tcp comment 'ssh'
+        test_expected_status: inactive
+
+    # Check mode changes nothing, even when a rebuild is required.
+    - name: Check mode on a disabled, drifted firewall
+      ansible.builtin.include_tasks: tasks/run_role.yml
+      vars:
+        test_name: check mode, drifted
+        test_rules: "{{ test_full }}"
+        test_check_mode: true
+
+    - name: Assert check mode reported drift
+      ansible.builtin.assert:
+        that: ufw_needs_reset | bool
+        quiet: true
+
+    - name: Assert check mode changed nothing
+      ansible.builtin.include_tasks: tasks/assert_state.yml
+      vars:
+        test_name: check mode, drifted
+        test_expected_rules:
+          - ufw allow 22/tcp comment 'ssh'
+        test_expected_status: inactive
+
+    # Recovery: a normal run restores the declared state.
+    - name: Recover
+      ansible.builtin.include_tasks: tasks/run_role.yml
+      vars:
+        test_name: recovery
+        test_rules: "{{ test_full }}"
+
+    - name: Assert the declared state is restored
+      ansible.builtin.include_tasks: tasks/assert_state.yml
+      vars:
+        test_name: recovered
+        test_expected_rules: "{{ test_full_expected }}"

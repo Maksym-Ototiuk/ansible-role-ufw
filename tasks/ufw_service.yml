@@ -1,0 +1,98 @@
+---
+# Apply the rules of one service. Included once per entry of
+# `ufw_effective_rules`, with the entry in `ufw_service`. The drift check
+# in tasks/main.yml includes this file in check mode with `ufw_dry_run`
+# set; only that pass records the rule count and drift.
+#
+# Every field is normalised to a list and the lists are combined with
+# product(): the number of rules is the product of the list lengths
+# (a scalar counts as 1). See README, "Rule expansion".
+
+# noqa jinja: with ansible-core 2.19+ the ansible-lint jinja rule renders
+# the product() loop below with placeholder values and exhausts memory.
+- name: "Rules for {{ ufw_service.key }}"  # noqa: jinja
+  community.general.ufw:
+    # Unset fields are '' (or null if set so explicitly) and are turned
+    # into `omit` here, at the module argument level: ansible-core 2.19+
+    # drops `omit` from lists, and 2.16 renders null in lists as ''.
+    rule: "{{ item.0 }}"
+    proto: "{{ item.1 if item.1 not in [none, ''] else omit }}"
+    src: "{{ item.2 }}"
+    from_port: "{{ item.3 if item.3 not in [none, ''] else omit }}"
+    dest: "{{ item.4 }}"
+    port: "{{ item.5 if item.5 not in [none, ''] else omit }}"
+    direction: "{{ item.6 if item.6 not in [none, ''] else omit }}"
+    interface: "{{ item.7 if item.7 not in [none, ''] else omit }}"
+    interface_in: "{{ item.8 if item.8 not in [none, ''] else omit }}"
+    interface_out: "{{ item.9 if item.9 not in [none, ''] else omit }}"
+    route: "{{ item.10 if item.10 not in [none, ''] else omit }}"
+    name: "{{ item.11 if item.11 not in [none, ''] else omit }}"
+    log: "{{ item.12 if item.12 not in [none, ''] else omit }}"
+    # Not passed in check mode: ufw skips an existing rule regardless of
+    # its position, and a position larger than the current number of
+    # rules (e.g. on a freshly reset firewall) would fail the dry run.
+    insert: >-
+      {{ omit if (item.13 in [none, ''] or (ufw_dry_run | default(false) | bool)
+                  or (ufw_check_mode_probe is skipped)) else item.13 }}
+    insert_relative_to: "{{ item.14 if item.14 not in [none, ''] else omit }}"
+    comment: >-
+      {{ (item.15 ~ ' (' ~ ufw_service.key ~ ')') if item.15 not in [none, '']
+         else ufw_service.key }}
+  vars:
+    # Declared value, a default, or '' for "not set".
+    rules_v: "{{ ufw_service.value.rule | default('allow') }}"
+    protos: "{{ ufw_service.value.proto | default('') }}"
+    srcs: "{{ ufw_service.value.src | default('any') }}"
+    from_ports: "{{ ufw_service.value.from_port | default('') }}"
+    dests: "{{ ufw_service.value.dest | default('any') }}"
+    ports: "{{ ufw_service.value.port | default('') }}"
+    directions: "{{ ufw_service.value.direction | default('') }}"
+    interfaces: "{{ ufw_service.value.interface | default('') }}"
+    interfaces_in: "{{ ufw_service.value.interface_in | default('') }}"
+    interfaces_out: "{{ ufw_service.value.interface_out | default('') }}"
+    routes: "{{ ufw_service.value.route | default('') }}"
+    names: "{{ ufw_service.value.name | default('') }}"
+    logs: "{{ ufw_service.value.log | default('') }}"
+    inserts: "{{ ufw_service.value.insert | default('') }}"
+    insert_relative_tos: "{{ ufw_service.value.insert_relative_to | default('') }}"
+    comments: "{{ ufw_service.value.comment | default('') }}"
+
+    # Normalise every field to a list so product() can combine them.
+    rules_list: "{{ rules_v if rules_v is sequence and rules_v is not string else [rules_v] }}"
+    protos_list: "{{ protos if protos is sequence and protos is not string else [protos] }}"
+    srcs_list: "{{ srcs if srcs is sequence and srcs is not string else [srcs] }}"
+    from_ports_list: "{{ from_ports if from_ports is sequence and from_ports is not string else [from_ports] }}"
+    dests_list: "{{ dests if dests is sequence and dests is not string else [dests] }}"
+    ports_list: "{{ ports if ports is sequence and ports is not string else [ports] }}"
+    directions_list: "{{ directions if directions is sequence and directions is not string else [directions] }}"
+    interfaces_list: "{{ interfaces if interfaces is sequence and interfaces is not string else [interfaces] }}"
+    interfaces_in_list: "{{ interfaces_in if interfaces_in is sequence and interfaces_in is not string else [interfaces_in] }}"
+    interfaces_out_list: "{{ interfaces_out if interfaces_out is sequence and interfaces_out is not string else [interfaces_out] }}"
+    routes_list: "{{ routes if routes is sequence and routes is not string else [routes] }}"
+    names_list: "{{ names if names is sequence and names is not string else [names] }}"
+    logs_list: "{{ logs if logs is sequence and logs is not string else [logs] }}"
+    inserts_list: "{{ inserts if inserts is sequence and inserts is not string else [inserts] }}"
+    insert_relative_tos_list: "{{ insert_relative_tos if insert_relative_tos is sequence and insert_relative_tos is not string else [insert_relative_tos] }}"
+    comments_list: "{{ comments if comments is sequence and comments is not string else [comments] }}"
+  loop: >-
+    {{
+      rules_list | product(
+        protos_list, srcs_list, from_ports_list, dests_list, ports_list,
+        directions_list, interfaces_list, interfaces_in_list, interfaces_out_list,
+        routes_list, names_list, logs_list, inserts_list, insert_relative_tos_list, comments_list
+      ) | list
+    }}
+  loop_control:
+    label: >-
+      {{ ufw_service.key }}: {{ item.0 }}
+      from {{ item.2 }} to {{ item.4 }}
+      {{- (' port ' ~ item.5) if item.5 not in [none, ''] else '' }}
+      {{- (' proto ' ~ item.1) if item.1 not in [none, ''] else '' }}
+      {{- (' app ' ~ item.11) if item.11 not in [none, ''] else '' }}
+  register: ufw_service_result
+
+- name: Record rule count and drift for {{ ufw_service.key }}
+  ansible.builtin.set_fact:
+    ufw_total_rule_count: "{{ (ufw_total_rule_count | default(0) | int) + (ufw_service_result.results | length) }}"
+    ufw_rules_drift: "{{ (ufw_rules_drift | default(false) | bool) or (ufw_service_result is changed) }}"
+  when: ufw_dry_run | default(false) | bool

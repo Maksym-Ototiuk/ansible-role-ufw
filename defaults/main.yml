@@ -1,0 +1,61 @@
+---
+# Rule sets. Each is a dict keyed by a service name (a label used in
+# task output and appended to the rule comment). Each value is a dict
+# of rule fields; see README.md for the full field reference.
+#
+# Fields map 1:1 to community.general.ufw parameters or their aliases:
+#   rule, proto, src, from_port, dest, port, direction, interface,
+#   interface_in, interface_out, route, name, log, insert,
+#   insert_relative_to, comment
+#
+# Any field may be a scalar or a list. List-valued fields are expanded
+# into every combination, so the number of rules for a service is the
+# PRODUCT of the list lengths. Keep fields scalar unless every
+# combination is really needed.
+#
+# Layers, merged in this order (later layers override earlier ones,
+# fields of the same service are merged recursively):
+#   ufw_common  - rules for every host        (group_vars/all.yml)
+#   ufw_group   - rules for an inventory group (group_vars/<group>.yml)
+#   ufw_host    - rules for a single host      (host_vars/<host>.yml)
+#
+# ufw - if non-empty, used as the complete rule set for the host and
+#       the three layers above are ignored.
+#
+# Example:
+#
+# ufw_common:
+#   ssh:
+#     port: 22
+#     proto: tcp
+#     src: 10.0.0.0/8
+#     comment: SSH access
+#
+#   web:
+#     port: [80, 443]
+#     proto: tcp
+#     comment: Web traffic
+#
+#   postgres_internal:
+#     port: 5432
+#     proto: tcp
+#     src: 10.0.1.0/24
+#     direction: in
+#     interface: eth1
+#     comment: PostgreSQL, internal network only
+#
+#   openssh_profile:
+#     name: OpenSSH
+#     comment: SSH via application profile
+#
+#   ssh_limited:
+#     rule: limit
+#     port: 22
+#     proto: tcp
+#     log: true
+#     comment: Rate-limited SSH
+
+ufw: {}
+ufw_common: {}
+ufw_group: {}
+ufw_host: {}

@@ -1,0 +1,68 @@
+---
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_call:
+
+permissions:
+  contents: read
+
+jobs:
+  lint:
+    name: Lint
+    runs-on: ubuntu-24.04
+    steps:
+      - name: Check out
+        uses: actions/checkout@v5
+
+      - name: Set up Python
+        uses: actions/setup-python@v6
+        with:
+          python-version: "3.12"
+
+      - name: Install tools
+        run: pip install ansible-core ansible-lint yamllint
+
+      - name: Install collections
+        run: ansible-galaxy collection install -r molecule/default/requirements.yml
+
+      - name: Run yamllint
+        run: yamllint .
+
+      - name: Run ansible-lint
+        run: ansible-lint
+
+  molecule:
+    name: Molecule (ansible-core ${{ matrix.ansible-core }})
+    runs-on: ubuntu-24.04
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - ansible-core: "2.16"
+            pip-spec: ansible-core~=2.16.0
+            requirements: requirements-core-2.16.yml
+          - ansible-core: latest
+            pip-spec: ansible-core
+            requirements: requirements.yml
+    steps:
+      - name: Check out
+        uses: actions/checkout@v5
+
+      - name: Set up Python
+        uses: actions/setup-python@v6
+        with:
+          python-version: "3.12"
+
+      - name: Install tools
+        run: pip install "${{ matrix.pip-spec }}" molecule "molecule-plugins[docker]"
+
+      - name: Run Molecule
+        run: molecule test
+        env:
+          UFW_TEST_REQUIREMENTS: ${{ matrix.requirements }}
+          PY_COLORS: "1"
+          ANSIBLE_FORCE_COLOR: "1"

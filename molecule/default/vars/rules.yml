@@ -1,0 +1,120 @@
+---
+# Rule sets used by converge.yml and verify.yml.
+
+# Every rule field, spread over the three layers.
+test_full:
+  ufw_common:
+    ssh:
+      port: 22
+      proto: tcp
+      src: 10.0.0.0/8
+      comment: SSH from the management network
+    app_profile:
+      name: MoleculeTest
+      comment: Application profile
+    ssh_limit:
+      rule: limit
+      port: 2222
+      proto: tcp
+      log: true
+      comment: Rate-limited SSH
+  ufw_group:
+    web:
+      port: [80, 443]
+      proto: tcp
+      src: [192.0.2.0/24, 198.51.100.0/24]
+      comment: Web traffic
+    dns_out:
+      direction: out
+      dest: 9.9.9.9
+      port: 53
+      proto: [tcp, udp]
+    db_internal:
+      direction: in
+      interface: eth0
+      port: 5432
+      proto: tcp
+      src: 10.0.1.0/24
+      comment: PostgreSQL
+    forward_lan:
+      route: true
+      interface_in: eth0
+      interface_out: eth1
+      src: 10.0.0.0/24
+      comment: Forward LAN
+  ufw_host:
+    ssh:
+      src: 203.0.113.10
+    ipv6_only:
+      port: 8443
+      proto: tcp
+      src: 2001:db8::/32
+    reject_range:
+      rule: reject
+      from_port: 1234
+      port: "60000:61000"
+      proto: udp
+    block_host:
+      rule: deny
+      src: 192.0.2.66
+      insert: 1
+      comment: Blocked host
+
+# `ufw show added` after applying test_full.
+test_full_expected:
+  - ufw deny from 192.0.2.66 comment 'Blocked host (block_host)'
+  - ufw allow from 203.0.113.10 to any port 22 proto tcp comment 'SSH from the management network (ssh)'
+  - ufw allow MoleculeTest comment 'Application profile (app_profile)'
+  - ufw limit log 2222/tcp comment 'Rate-limited SSH (ssh_limit)'
+  - ufw allow from 192.0.2.0/24 to any port 80 proto tcp comment 'Web traffic (web)'
+  - ufw allow from 192.0.2.0/24 to any port 443 proto tcp comment 'Web traffic (web)'
+  - ufw allow from 198.51.100.0/24 to any port 80 proto tcp comment 'Web traffic (web)'
+  - ufw allow from 198.51.100.0/24 to any port 443 proto tcp comment 'Web traffic (web)'
+  - ufw allow out to 9.9.9.9 port 53 proto tcp comment 'dns_out'
+  - ufw allow out to 9.9.9.9 port 53 proto udp comment 'dns_out'
+  - ufw allow in on eth0 from 10.0.1.0/24 to any port 5432 proto tcp comment 'PostgreSQL (db_internal)'
+  - ufw route allow in on eth0 out on eth1 from 10.0.0.0/24 comment 'Forward LAN (forward_lan)'
+  - ufw reject from any port 1234 to any port 60000:61000 proto udp comment 'reject_range'
+  - ufw allow from 2001:db8::/32 to any port 8443 proto tcp comment 'ipv6_only'
+
+# `ufw` replaces the layers completely.
+test_override:
+  ufw_common: "{{ test_full.ufw_common }}"
+  ufw_group: "{{ test_full.ufw_group }}"
+  ufw_host: "{{ test_full.ufw_host }}"
+  ufw:
+    bastion_ssh:
+      port: 22
+      proto: tcp
+      comment: Public SSH
+
+test_override_expected:
+  - ufw allow 22/tcp comment 'Public SSH (bastion_ssh)'
+
+test_quote_in_comment:
+  ufw_common:
+    ssh:
+      port: 22
+      proto: tcp
+      comment: "Admin's SSH"
+
+test_duplicates:
+  ufw_common:
+    ssh_a:
+      port: 22
+      proto: tcp
+      comment: first
+    ssh_b:
+      port: 22
+      proto: tcp
+      comment: second
+
+test_invalid_insert:
+  ufw_common:
+    ssh:
+      port: 22
+      proto: tcp
+    too_far:
+      rule: deny
+      src: 192.0.2.1
+      insert: 50
