@@ -62,15 +62,15 @@ Supported and tested platforms:
 
 ## Installation
 
-The role is installed from this repository with `ansible-galaxy`. Pin it
-to a release tag in the `requirements.yml` of your Ansible project:
+The role is published on
+[Ansible Galaxy](https://galaxy.ansible.com/ui/standalone/roles/Maksym-Ototiuk/ufw/)
+as `Maksym-Ototiuk.ufw`. Pin it to a release in the `requirements.yml` of
+your Ansible project:
 
 ```yaml
 # requirements.yml
 roles:
-  - name: ufw
-    src: https://github.com/Maksym-Ototiuk/ansible-role-ufw.git
-    scm: git
+  - name: Maksym-Ototiuk.ufw
     version: v1.0.0
 
 collections:
@@ -81,10 +81,22 @@ collections:
 ansible-galaxy install -r requirements.yml
 ```
 
-This installs the role as `ufw` into the default roles path
-(`~/.ansible/roles`); add `-p roles/` to install it into the project
-instead. Available versions are listed in [CHANGELOG.md](CHANGELOG.md).
-The role follows [Semantic Versioning](https://semver.org/).
+Or install it directly:
+
+```bash
+ansible-galaxy role install Maksym-Ototiuk.ufw,v1.0.0
+```
+
+The role is installed into the default roles path (`~/.ansible/roles`);
+add `-p roles/` to install it into the project instead. Reference it in
+playbooks as `Maksym-Ototiuk.ufw`.
+
+To install from GitHub instead, use
+`src: https://github.com/Maksym-Ototiuk/ansible-role-ufw.git` with
+`scm: git` and `name: ufw` in `requirements.yml`.
+
+Available versions are listed in [CHANGELOG.md](CHANGELOG.md). The role
+follows [Semantic Versioning](https://semver.org/).
 
 ## Example playbook
 
@@ -93,7 +105,7 @@ The role follows [Semantic Versioning](https://semver.org/).
   hosts: all
   become: true
   roles:
-    - ufw
+    - Maksym-Ototiuk.ufw
 ```
 
 The rules come from inventory variables; see
