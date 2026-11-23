@@ -27,7 +27,6 @@ hand to `/etc/ufw/before.rules` are lost on every rebuild (see
 - [How reconciliation works](#how-reconciliation-works)
 - [Caveats](#caveats)
 - [Testing](#testing)
-- [Releasing](#releasing)
 - [License](#license)
 - [Author](#author)
 
@@ -406,25 +405,6 @@ molecule test
 
 GitHub Actions runs the same checks on every push and pull request, with
 the latest ansible-core and with ansible-core 2.16.
-
-## Releasing
-
-1. Add a section for the new version to [CHANGELOG.md](CHANGELOG.md) and
-   update the version in the [Installation](#installation) example.
-2. Run the tests locally and commit.
-3. Tag and push:
-
-   ```bash
-   git tag -a v1.1.0 -m "Release v1.1.0"
-   git push origin main v1.1.0
-   ```
-
-The release workflow then runs the full test suite and, only if it
-passes, creates the GitHub release from the CHANGELOG section and imports
-the new version into Ansible Galaxy. The Galaxy import needs the
-repository secret `GALAXY_API_KEY` (API key from
-[galaxy.ansible.com](https://galaxy.ansible.com/), signed in with the
-GitHub account that owns the repository).
 
 ## License
 
