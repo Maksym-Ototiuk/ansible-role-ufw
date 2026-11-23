@@ -67,7 +67,7 @@ your Ansible project:
 # requirements.yml
 roles:
   - name: Maksym-Ototiuk.ufw
-    version: v1.0.1
+    version: v1.0.2
 
 collections:
   - name: community.general
@@ -80,7 +80,7 @@ ansible-galaxy install -r requirements.yml
 Or install it directly:
 
 ```bash
-ansible-galaxy role install Maksym-Ototiuk.ufw,v1.0.1
+ansible-galaxy role install Maksym-Ototiuk.ufw,v1.0.2
 ```
 
 The role is installed into the default roles path (`~/.ansible/roles`);
@@ -98,7 +98,7 @@ installed under the name you choose:
 roles:
   - src: Maksym-Ototiuk.ufw
     name: ufw
-    version: v1.0.1
+    version: v1.0.2
 ```
 
 ```bash
@@ -126,7 +126,7 @@ roles:
   - src: https://github.com/Maksym-Ototiuk/ansible-role-ufw.git
     scm: git
     name: ufw
-    version: v1.0.1
+    version: v1.0.2
 ```
 
 Available versions are listed in [CHANGELOG.md](CHANGELOG.md). The role
