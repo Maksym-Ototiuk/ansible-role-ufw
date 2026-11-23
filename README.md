@@ -26,9 +26,6 @@ hand to `/etc/ufw/before.rules` are lost on every rebuild (see
 - [Layering rules across the inventory](#layering-rules-across-the-inventory)
 - [How reconciliation works](#how-reconciliation-works)
 - [Caveats](#caveats)
-- [Testing](#testing)
-- [License](#license)
-- [Author](#author)
 
 ## Features
 
@@ -371,45 +368,3 @@ Read this section before running the role against production hosts.
   in their comment become one UFW rule. The role detects this after a
   rebuild and fails with an explanation; otherwise every run would rebuild
   the firewall again.
-
-## Testing
-
-The tests use [Molecule](https://ansible.readthedocs.io/projects/molecule/)
-with Docker. Each supported Ubuntu release runs in a privileged container
-(UFW needs iptables); every container has its own network namespace, so
-the firewall of the machine running the tests is not changed.
-
-The test scenario (`molecule/default`) checks:
-
-- applying rules from all layers, covering every rule field, and comparing
-  the result with the expected `ufw show added` output;
-- idempotence and check mode on a converged host;
-- detection and repair of undeclared, deleted and modified rules and of a
-  disabled firewall, with check mode reporting drift without changing the
-  host;
-- the `ufw` override, and an empty rule set leaving UFW untouched;
-- rejection of invalid comments, detection of duplicate rules, and the
-  error raised when a rebuild fails.
-
-Run the tests locally (requires Docker and Python 3.10 or later):
-
-```bash
-python3 -m venv ~/.venvs/molecule
-~/.venvs/molecule/bin/pip install ansible-core ansible-lint yamllint molecule "molecule-plugins[docker]"
-source ~/.venvs/molecule/bin/activate
-
-yamllint .
-ansible-lint
-molecule test
-```
-
-GitHub Actions runs the same checks on every push and pull request, with
-the latest ansible-core and with ansible-core 2.16.
-
-## License
-
-MIT. See [LICENSE](LICENSE).
-
-## Author
-
-Maksym Ototiuk — contact_me@masik.slmail.me
