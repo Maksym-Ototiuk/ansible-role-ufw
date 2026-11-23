@@ -8,6 +8,11 @@ that data into UFW rules and keeps the host in sync with it: missing or
 modified rules are restored, and rules that are not declared (including
 rules added by hand) are removed.
 
+NAT (masquerading, port forwarding) is not supported yet. Rules for
+forwarded traffic (`route: true`) are supported, but NAT rules added by
+hand to `/etc/ufw/before.rules` are lost on every rebuild (see
+[Caveats](#caveats)).
+
 ## Contents
 
 - [Features](#features)
