@@ -71,7 +71,7 @@ your Ansible project:
 # requirements.yml
 roles:
   - name: Maksym-Ototiuk.ufw
-    version: v1.0.0
+    version: v1.0.1
 
 collections:
   - name: community.general
@@ -84,16 +84,54 @@ ansible-galaxy install -r requirements.yml
 Or install it directly:
 
 ```bash
-ansible-galaxy role install Maksym-Ototiuk.ufw,v1.0.0
+ansible-galaxy role install Maksym-Ototiuk.ufw,v1.0.1
 ```
 
 The role is installed into the default roles path (`~/.ansible/roles`);
 add `-p roles/` to install it into the project instead. Reference it in
 playbooks as `Maksym-Ototiuk.ufw`.
 
-To install from GitHub instead, use
-`src: https://github.com/Maksym-Ototiuk/ansible-role-ufw.git` with
-`scm: git` and `name: ufw` in `requirements.yml`.
+### Installing under a local name
+
+To use a shorter name in your playbooks, set `name` in
+`requirements.yml`. The role is downloaded from Galaxy as usual, but
+installed under the name you choose:
+
+```yaml
+# requirements.yml
+roles:
+  - src: Maksym-Ototiuk.ufw
+    name: ufw
+    version: v1.0.1
+```
+
+```bash
+ansible-galaxy install -r requirements.yml
+```
+
+The role is then available as `ufw`:
+
+```yaml
+- name: Configure firewall
+  hosts: all
+  become: true
+  roles:
+    - ufw
+```
+
+To upgrade, change `version` and run
+`ansible-galaxy install -r requirements.yml --force`.
+
+### Installing from GitHub
+
+```yaml
+# requirements.yml
+roles:
+  - src: https://github.com/Maksym-Ototiuk/ansible-role-ufw.git
+    scm: git
+    name: ufw
+    version: v1.0.1
+```
 
 Available versions are listed in [CHANGELOG.md](CHANGELOG.md). The role
 follows [Semantic Versioning](https://semver.org/).
